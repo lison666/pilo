@@ -3,6 +3,7 @@ mod index;
 mod io;
 mod search;
 mod watch;
+mod workspace_lock;
 
 use std::path::PathBuf;
 

@@ -5,6 +5,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 
 use super::agent_dir;
+use super::workspace_lock::guard_workspace_lock;
 use crate::to_value;
 
 #[derive(Deserialize)]
@@ -82,6 +83,7 @@ pub(crate) fn session_read(params: SessionReadParams) -> Result<(Value, Vec<u8>)
 /// prefer the optional `trash` CLI, then fall back to permanent file removal.
 pub(crate) fn session_delete(params: SessionDeleteParams) -> Result<Value, String> {
     let path = checked_session_file(&params.path)?;
+    guard_workspace_lock(&path)?;
     let mut trash = Command::new("trash");
     if params.path.starts_with('-') {
         trash.arg("--");

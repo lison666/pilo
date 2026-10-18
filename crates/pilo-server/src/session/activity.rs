@@ -317,7 +317,50 @@ fn macos_process_cwd(pid: u32) -> Option<PathBuf> {
         })
 }
 
-#[cfg(not(any(target_os = "linux", target_os = "macos")))]
+#[cfg(target_os = "windows")]
+fn external_pi_processes(project: &Path, _owned_pids: &HashSet<u32>) -> Vec<ExternalPiProcess> {
+    // Windows has no cheap /proc-style cwd scan; instead read the
+    // bidding-agent workspace lock. A live holder means this project's
+    // sessions belong to a running job (or ad-hoc operator session) — the
+    // same protocol the session.delete guard enforces. One synthetic
+    // process entry lets the existing mtime-fallback pick the live file.
+    if lock_holder_alive(project) {
+        return vec![ExternalPiProcess { session_path: None }];
+    }
+    Vec::new()
+}
+
+#[cfg(windows)]
+fn lock_holder_alive(project: &Path) -> bool {
+    #[derive(Deserialize)]
+    struct Lock {
+        pid: Option<u32>,
+    }
+    let Ok(text) = std::fs::read_to_string(project.join("state").join("workspace.lock")) else {
+        return false;
+    };
+    let Ok(lock) = serde_json::from_str::<Lock>(text.trim()) else {
+        return false;
+    };
+    lock.pid.is_some_and(pid_alive_windows)
+}
+
+#[cfg(windows)]
+fn pid_alive_windows(pid: u32) -> bool {
+    use windows_sys::Win32::Foundation::{CloseHandle, ERROR_ACCESS_DENIED, GetLastError};
+    use windows_sys::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION};
+    unsafe {
+        let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+        if !handle.is_null() {
+            CloseHandle(handle);
+            return true;
+        }
+        // Access denied still proves the process exists.
+        GetLastError() == ERROR_ACCESS_DENIED
+    }
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
 fn external_pi_processes(_project: &Path, _owned_pids: &HashSet<u32>) -> Vec<ExternalPiProcess> {
     Vec::new()
 }

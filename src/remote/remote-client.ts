@@ -196,16 +196,23 @@ async function remoteFetchBytes(
 	return new Uint8Array(await response.arrayBuffer());
 }
 
-export function newRemoteBiddingAgent(token: string, input: BiddingAgentNewInput) {
-	return remoteFetch<BiddingAgentNewResult>(token, "/api/v1/bidding-agent/new", {
-		method: "POST",
-		body: JSON.stringify({
-			projectId: input.projectId,
-			purpose: input.purpose,
-			fields: input.fields,
-			fromRegistry: input.fromRegistry ?? false,
-		}),
-	});
+export function newRemoteBiddingAgent(
+	token: string,
+	input: BiddingAgentNewInput,
+) {
+	return remoteFetch<BiddingAgentNewResult>(
+		token,
+		"/api/v1/bidding-agent/new",
+		{
+			method: "POST",
+			body: JSON.stringify({
+				projectId: input.projectId,
+				purpose: input.purpose,
+				fields: input.fields,
+				fromRegistry: input.fromRegistry ?? false,
+			}),
+		},
+	);
 }
 
 export function loadRemoteThemeSettings(token: string) {

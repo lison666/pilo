@@ -112,6 +112,9 @@ jobs:
       - name: Cargo check
         run: cargo check -p pilo-server --all-targets --all-features
 
+      - name: Create resource dirs
+        run: New-Item -ItemType Directory -Force dist, src-tauri/resources | Out-Null
+
       - name: Cargo check (Tauri shell)
         run: cargo check -p pilo
 

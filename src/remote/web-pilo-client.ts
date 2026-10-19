@@ -207,9 +207,7 @@ export class WebPiloClient implements PiloClient {
 		return requestRemoteNextPrompt(this.token, request);
 	}
 
-	biddingAgentNew(
-		input: BiddingAgentNewInput,
-	): Promise<BiddingAgentNewResult> {
+	biddingAgentNew(input: BiddingAgentNewInput): Promise<BiddingAgentNewResult> {
 		return newRemoteBiddingAgent(this.token, input);
 	}
 

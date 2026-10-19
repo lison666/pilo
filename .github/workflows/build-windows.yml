@@ -58,6 +58,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Create resource dirs
+        run: New-Item -ItemType Directory -Force dist, src-tauri/resources | Out-Null
+
       - name: Build pilo-server runtime resource
         shell: cmd
         run: scripts\build-pilo-server.cmd

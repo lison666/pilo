@@ -155,9 +155,7 @@ export class TauriPiloClient implements PiloClient {
 		return getCachedProjectPiModels(projectId);
 	}
 
-	biddingAgentNew(
-		input: BiddingAgentNewInput,
-	): Promise<BiddingAgentNewResult> {
+	biddingAgentNew(input: BiddingAgentNewInput): Promise<BiddingAgentNewResult> {
 		return invoke<BiddingAgentNewResult>("bidding_agent_new", {
 			projectId: input.projectId,
 			purpose: input.purpose,

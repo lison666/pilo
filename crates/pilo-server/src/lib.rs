@@ -173,6 +173,15 @@ fn drain_events(mut rx: mpsc::Receiver<output::QueuedOutput>) -> JoinHandle<()> 
                 binary,
             } = queued.message
             {
+                // Payloads that decode as UTF-8 (pi rpc_json lines) go inline so
+                // agents can read them; the rest stay hex.
+                let binary_text: Vec<Value> = binary
+                    .iter()
+                    .map(|chunk| match String::from_utf8(chunk.clone()) {
+                        Ok(text) => Value::String(text),
+                        Err(_) => Value::String(hex_encode(chunk)),
+                    })
+                    .collect();
                 eprintln!(
                     "{}",
                     serde_json::json!({
@@ -180,6 +189,7 @@ fn drain_events(mut rx: mpsc::Receiver<output::QueuedOutput>) -> JoinHandle<()> 
                         "streamId": stream_id,
                         "data": data,
                         "binaryBytes": binary.iter().map(Vec::len).collect::<Vec<_>>(),
+                        "binaryText": binary_text,
                     })
                 );
             }

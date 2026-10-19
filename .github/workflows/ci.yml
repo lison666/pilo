@@ -91,3 +91,26 @@ jobs:
 
       - name: Clippy
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+  windows-backend:
+    name: Windows backend check
+    runs-on: windows-2022
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+
+      - name: Cargo check
+        run: cargo check -p pilo-server --all-targets --all-features
+
+      - name: Cargo test
+        run: cargo test -p pilo-server

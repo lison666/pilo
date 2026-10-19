@@ -3,8 +3,11 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import type { PiloClient } from "@/lib/api/pilo-client";
-import { addProject, notifyProjectsChanged } from "@/lib/api/projects";
-import type { Project } from "@/lib/api/projects";
+import {
+	addProject,
+	notifyProjectsChanged,
+	type Project,
+} from "@/lib/api/projects";
 import { userErrorMessage } from "@/lib/app-error";
 import {
 	Button,

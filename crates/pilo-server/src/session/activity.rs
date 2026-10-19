@@ -318,31 +318,70 @@ fn macos_process_cwd(pid: u32) -> Option<PathBuf> {
 }
 
 #[cfg(target_os = "windows")]
-fn external_pi_processes(project: &Path, _owned_pids: &HashSet<u32>) -> Vec<ExternalPiProcess> {
+fn external_pi_processes(project: &Path, owned_pids: &HashSet<u32>) -> Vec<ExternalPiProcess> {
     // Windows has no cheap /proc-style cwd scan; instead read the
     // bidding-agent workspace lock. A live holder means this project's
     // sessions belong to a running job (or ad-hoc operator session) — the
     // same protocol the session.delete guard enforces. One synthetic
     // process entry lets the existing mtime-fallback pick the live file.
-    if lock_holder_alive(project) {
-        return vec![ExternalPiProcess { session_path: None }];
+    match lock_holder_pid(project) {
+        Some(pid) if pid_alive_windows(pid) && !descends_from_any(pid, owned_pids) => {
+            vec![ExternalPiProcess { session_path: None }]
+        }
+        _ => Vec::new(),
     }
-    Vec::new()
 }
 
 #[cfg(windows)]
-fn lock_holder_alive(project: &Path) -> bool {
+fn lock_holder_pid(project: &Path) -> Option<u32> {
     #[derive(Deserialize)]
     struct Lock {
         pid: Option<u32>,
     }
-    let Ok(text) = std::fs::read_to_string(project.join("state").join("workspace.lock")) else {
-        return false;
+    let text = std::fs::read_to_string(project.join("state").join("workspace.lock")).ok()?;
+    serde_json::from_str::<Lock>(text.trim()).ok()?.pid
+}
+
+/// True when `pid` is a descendant of any process in `owned` — the lock
+/// holder (bidding-agent) sits several generations below the cmd shim Pilo
+/// spawned, so a plain `owned.contains(pid)` can never match.
+#[cfg(windows)]
+fn descends_from_any(mut pid: u32, owned: &HashSet<u32>) -> bool {
+    use std::collections::HashMap;
+    use std::mem::{size_of, zeroed};
+    use windows_sys::Win32::Foundation::{CloseHandle, INVALID_HANDLE_VALUE};
+    use windows_sys::Win32::System::Diagnostics::ToolHelp::{
+        CreateToolhelp32Snapshot, PROCESSENTRY32W, Process32FirstW, Process32NextW,
+        TH32CS_SNAPPROCESS,
     };
-    let Ok(lock) = serde_json::from_str::<Lock>(text.trim()) else {
-        return false;
-    };
-    lock.pid.is_some_and(pid_alive_windows)
+    unsafe {
+        let snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+        if snap == INVALID_HANDLE_VALUE {
+            return false;
+        }
+        let mut parents = HashMap::new();
+        let mut entry: PROCESSENTRY32W = zeroed();
+        entry.dwSize = size_of::<PROCESSENTRY32W>() as u32;
+        if Process32FirstW(snap, &mut entry) != 0 {
+            loop {
+                parents.insert(entry.th32ProcessID, entry.th32ParentProcessID);
+                if Process32NextW(snap, &mut entry) == 0 {
+                    break;
+                }
+            }
+        }
+        CloseHandle(snap);
+        for _ in 0..64 {
+            if owned.contains(&pid) {
+                return true;
+            }
+            match parents.get(&pid) {
+                Some(&parent) if parent != pid => pid = parent,
+                _ => return false,
+            }
+        }
+        false
+    }
 }
 
 #[cfg(windows)]

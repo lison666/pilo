@@ -38,6 +38,7 @@ use session::{
     session_watch_start, session_watch_stop,
 };
 use tokio::{
+    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
     sync::{Mutex, OnceCell, Semaphore, mpsc},
     task::{JoinHandle, JoinSet},
 };
@@ -92,14 +93,11 @@ struct ServerState {
     extensions_dir: Arc<std::path::PathBuf>,
 }
 
-pub async fn serve_stdio() -> Result<(), Box<dyn std::error::Error>> {
-    let extensions_dir = extensions::deploy()?;
-    eprintln!(
-        "[runtime-diagnostics] server started pid={} version={SERVER_VERSION} maxInFlight={MAX_IN_FLIGHT_REQUESTS}",
-        std::process::id()
-    );
-    let (writer_tx, mut writer_rx) = mpsc::channel::<output::QueuedOutput>(256);
-    let state = ServerState {
+fn new_state(
+    writer_tx: mpsc::Sender<output::QueuedOutput>,
+    extensions_dir: std::path::PathBuf,
+) -> ServerState {
+    ServerState {
         writer: ServerWriter::new(writer_tx),
         request_slots: Arc::new(Semaphore::new(MAX_IN_FLIGHT_REQUESTS)),
         control_slots: Arc::new(Semaphore::new(MAX_IN_FLIGHT_REQUESTS)),
@@ -114,7 +112,199 @@ pub async fn serve_stdio() -> Result<(), Box<dyn std::error::Error>> {
         login_path: Arc::new(OnceCell::new()),
         toolchain: Arc::new(OnceCell::new()),
         extensions_dir: Arc::new(extensions_dir),
+    }
+}
+
+/// Stop and drain every child the server owns: pi processes, stream readers,
+/// session watchers, terminals. Mirrors the tail of `serve_stdio`.
+async fn drain_children(state: &ServerState) {
+    state.pi_starts.lock().await.clear();
+    for (_, (_, tasks)) in state
+        .pi_output_tasks
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .drain()
+    {
+        for task in tasks {
+            task.abort();
+        }
+    }
+    let processes = state
+        .pi
+        .lock()
+        .await
+        .drain()
+        .map(|(_, process)| process)
+        .collect::<Vec<_>>();
+    let mut stops = state.pi_stops.lock().await;
+    for process in processes {
+        stops.spawn(async move {
+            if let Err(error) = process.stop().await {
+                eprintln!("[runtime-diagnostics] Pi cleanup failed: {error}");
+            }
+        });
+    }
+    while let Some(result) = stops.join_next().await {
+        if let Err(error) = result {
+            eprintln!("[runtime-diagnostics] Pi cleanup task failed: {error}");
+        }
+    }
+    drop(stops);
+    for (_, task) in state.session_watchers.lock().await.drain() {
+        task.abort();
+    }
+    if let Ok(mut terminals) = state.terminals.lock() {
+        for (_, mut terminal) in terminals.drain() {
+            let _ = terminal.child.kill();
+            let _ = terminal.child.wait();
+        }
+    }
+}
+
+/// Print pushed events (pi stdout, session watch, ...) to stderr as JSON
+/// lines so `call` mode keeps stdout machine-clean.
+fn drain_events(mut rx: mpsc::Receiver<output::QueuedOutput>) -> JoinHandle<()> {
+    tokio::spawn(async move {
+        while let Some(queued) = rx.recv().await {
+            if let Envelope::Event {
+                stream_id,
+                event,
+                data,
+                binary,
+            } = queued.message
+            {
+                eprintln!(
+                    "{}",
+                    serde_json::json!({
+                        "event": event,
+                        "streamId": stream_id,
+                        "data": data,
+                        "binaryBytes": binary.iter().map(Vec::len).collect::<Vec<_>>(),
+                    })
+                );
+            }
+        }
+    })
+}
+
+/// One-shot request for agent/test use: `pilo-server call <method> [params]`.
+/// Returns `(result, binary attachments)` exactly as `dispatch` produced them.
+pub async fn call_once(
+    method: &str,
+    params: Value,
+    binary: Vec<Vec<u8>>,
+) -> Result<(Value, Vec<Vec<u8>>), String> {
+    let extensions_dir = extensions::deploy().map_err(|error| error.to_string())?;
+    let (tx, rx) = mpsc::channel::<output::QueuedOutput>(256);
+    let events = drain_events(rx);
+    let state = new_state(tx, extensions_dir);
+    // Spawn like serve_stdio does: dispatch's future is large enough to
+    // overflow the caller's stack when awaited inline.
+    let op_state = state.clone();
+    let method = method.to_owned();
+    let reply = tokio::spawn(async move { dispatch(&op_state, &method, params, binary).await })
+        .await
+        .map_err(|error| format!("call task failed: {error}"))?;
+    drain_children(&state).await;
+    drop(state);
+    let _ = events.await;
+    reply.map(|reply| (reply.value, reply.binary))
+}
+
+/// JSON-lines request loop for agent/test use: `pilo-server call` with no
+/// method reads `{"method":..., "params":..., "binaryHex":"..."}` lines from
+/// stdin and writes `{"ok":..., "result"/"error":...}` lines to stdout. All
+/// lines share one ServerState, so pi.start/pi.send/pi.stop sequences work.
+pub async fn call_jsonl() -> Result<(), Box<dyn std::error::Error>> {
+    let extensions_dir = extensions::deploy()?;
+    let (tx, rx) = mpsc::channel::<output::QueuedOutput>(256);
+    let events = drain_events(rx);
+    let state = new_state(tx, extensions_dir);
+    let mut lines = BufReader::new(tokio::io::stdin()).lines();
+    let mut out = tokio::io::stdout();
+    while let Some(line) = lines.next_line().await? {
+        if line.trim().is_empty() {
+            continue;
+        }
+        // Spawn like serve_stdio does: dispatch's future is large enough to
+        // overflow the caller's stack when awaited inline.
+        let op_state = state.clone();
+        let line = line.trim().to_owned();
+        let response =
+            match tokio::spawn(async move { handle_call_line(&op_state, &line).await }).await {
+                Ok(response) => response,
+                Err(error) => {
+                    serde_json::json!({"ok": false, "error": format!("call task failed: {error}")})
+                }
+            };
+        out.write_all(response.to_string().as_bytes()).await?;
+        out.write_all(b"\n").await?;
+        out.flush().await?;
+    }
+    drain_children(&state).await;
+    drop(state);
+    let _ = events.await;
+    Ok(())
+}
+
+async fn handle_call_line(state: &ServerState, line: &str) -> Value {
+    let request = match serde_json::from_str::<Value>(line) {
+        Ok(request) => request,
+        Err(error) => {
+            return serde_json::json!({"ok": false, "error": format!("invalid JSON: {error}")});
+        }
     };
+    let Some(method) = request.get("method").and_then(Value::as_str) else {
+        return serde_json::json!({"ok": false, "error": "missing 'method'"});
+    };
+    let params = request.get("params").cloned().unwrap_or(Value::Null);
+    let binary = match request.get("binaryHex").and_then(Value::as_str) {
+        Some(hex) => match hex_decode(hex) {
+            Ok(data) => vec![data],
+            Err(error) => return serde_json::json!({"ok": false, "error": error}),
+        },
+        None => Vec::new(),
+    };
+    match dispatch(state, method, params, binary).await {
+        Ok(reply) => serde_json::json!({
+            "ok": true,
+            "result": reply.value,
+            "binaryHex": reply.binary.iter().map(|b| hex_encode(b)).collect::<Vec<_>>(),
+        }),
+        Err(error) => serde_json::json!({"ok": false, "error": error}),
+    }
+}
+
+pub fn hex_encode(data: &[u8]) -> String {
+    use std::fmt::Write as _;
+    data.iter().fold(String::new(), |mut out, b| {
+        let _ = write!(out, "{b:02x}");
+        out
+    })
+}
+
+pub fn hex_decode(text: &str) -> Result<Vec<u8>, String> {
+    let text = text.trim();
+    if !text.len().is_multiple_of(2) {
+        return Err("binaryHex must have even length".to_owned());
+    }
+    (0..text.len())
+        .step_by(2)
+        .map(|i| {
+            u8::from_str_radix(&text[i..i + 2], 16)
+                .map_err(|error| format!("binaryHex invalid at byte {}: {error}", i / 2))
+        })
+        .collect()
+}
+
+pub async fn serve_stdio() -> Result<(), Box<dyn std::error::Error>> {
+    let extensions_dir = extensions::deploy()?;
+    eprintln!(
+        "[runtime-diagnostics] server started pid={} version={SERVER_VERSION} maxInFlight={MAX_IN_FLIGHT_REQUESTS}",
+        std::process::id()
+    );
+    let (writer_tx, mut writer_rx) = mpsc::channel::<output::QueuedOutput>(256);
+    let state = new_state(writer_tx, extensions_dir);
 
     let (writer_done_tx, mut writer_done_rx) = tokio::sync::oneshot::channel();
     let mut writer_task = tokio::spawn(async move {
@@ -248,52 +438,13 @@ pub async fn serve_stdio() -> Result<(), Box<dyn std::error::Error>> {
     // spawn a new child after shutdown cleanup has already passed it.
     requests.abort_all();
     while requests.join_next().await.is_some() {}
-    state.pi_starts.lock().await.clear();
-    for (_, (_, tasks)) in state
-        .pi_output_tasks
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
-        .drain()
-    {
-        for task in tasks {
-            task.abort();
-        }
-    }
-    let processes = state
-        .pi
-        .lock()
-        .await
-        .drain()
-        .map(|(_, process)| process)
-        .collect::<Vec<_>>();
+    let pi_process_count = state.pi.lock().await.len();
     eprintln!(
         "[runtime-diagnostics] server cleanup pid={} piProcesses={}",
         std::process::id(),
-        processes.len()
+        pi_process_count
     );
-    let mut stops = state.pi_stops.lock().await;
-    for process in processes {
-        stops.spawn(async move {
-            if let Err(error) = process.stop().await {
-                eprintln!("[runtime-diagnostics] Pi cleanup failed: {error}");
-            }
-        });
-    }
-    while let Some(result) = stops.join_next().await {
-        if let Err(error) = result {
-            eprintln!("[runtime-diagnostics] Pi cleanup task failed: {error}");
-        }
-    }
-    drop(stops);
-    for (_, task) in state.session_watchers.lock().await.drain() {
-        task.abort();
-    }
-    if let Ok(mut terminals) = state.terminals.lock() {
-        for (_, mut terminal) in terminals.drain() {
-            let _ = terminal.child.kill();
-            let _ = terminal.child.wait();
-        }
-    }
+    drain_children(&state).await;
     drop(state.writer);
     if tokio::time::timeout(std::time::Duration::from_secs(1), &mut writer_task)
         .await

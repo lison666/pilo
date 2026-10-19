@@ -66,6 +66,10 @@ jobs:
         run: scripts\build-pilo-server.cmd
 
       - name: Build Tauri app
+        env:
+          # Diagnostic build: only the Windows server runtime is staged;
+          # release bundles for all platforms remain the release workflow's job.
+          PILO_ALLOW_INCOMPLETE_SERVER_BUNDLE: "1"
         run: pnpm tauri build
 
       - name: Upload installer bundle

@@ -31,3 +31,8 @@ docs/chat-streaming-performance-design.md
 
 # macOS-only helper for regenerating src-tauri/icons/icon.icns locally.
 scripts/make-macos-icon.sh
+
+# tsc -b artifacts
+*.tsbuildinfo
+vite.config.js
+vite.config.d.ts

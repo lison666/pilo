@@ -167,7 +167,7 @@ export function BiddingNewDialog({
 					{fields.map((spec) => (
 						<div key={spec.key} className="flex flex-col gap-1.5">
 							<Label>
-								{t(`bidding.fields.${spec.key}`, spec.key)}
+								{t(`bidding.fields.${spec.key}`)}
 								{spec.required ? " *" : ""}
 							</Label>
 							{spec.multiline ? (

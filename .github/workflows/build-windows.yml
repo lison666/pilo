@@ -2,15 +2,6 @@ name: Build Windows installer
 
 on:
   workflow_dispatch:
-  push:
-    branches: [feature/workspace-lock-guard]
-    paths:
-      - "src-tauri/**"
-      - "src/**"
-      - "crates/**"
-      - "pnpm-lock.yaml"
-      - "package.json"
-      - ".github/workflows/build-windows.yml"
 
 permissions:
   contents: read
@@ -53,7 +44,8 @@ jobs:
         uses: swatinem/rust-cache@v2
         with:
           workspaces: ". -> target"
-          shared-key: pilo-windows-installer
+          shared-key: pilo-windows
+          cache-on-failure: true
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile

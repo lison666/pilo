@@ -2,7 +2,15 @@ name: CI
 
 on:
   push:
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - ".trellis/**"
   pull_request:
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - ".trellis/**"
   workflow_dispatch:
 
 permissions:
@@ -79,6 +87,7 @@ jobs:
         uses: swatinem/rust-cache@v2
         with:
           workspaces: ". -> target"
+          cache-on-failure: true
 
       - name: Create build directories
         run: mkdir -p dist src-tauri/resources
@@ -108,6 +117,8 @@ jobs:
         uses: swatinem/rust-cache@v2
         with:
           workspaces: ". -> target"
+          shared-key: pilo-windows
+          cache-on-failure: true
 
       - name: Cargo check
         run: cargo check -p pilo-server --all-targets --all-features

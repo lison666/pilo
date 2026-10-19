@@ -12,13 +12,11 @@ import type { RemoteAccessAddress } from "@/lib/api/remote";
 import type { ChatSessionRuntimeState } from "@/lib/api/chat-session-client";
 import type {
 	PiloClientBootstrap,
+	BiddingAgentNewInput,
+	BiddingAgentNewResult,
 	PiloClientEventMessage,
 	PiloClientHistoryOptions,
 	PiloClientStartChatInput,
-} from "@/lib/api/pilo-client";
-import type {
-	BiddingAgentNewInput,
-	BiddingAgentNewResult,
 } from "@/lib/api/pilo-client";
 import type { ProjectPiModels } from "@/lib/api/pi-models";
 import type { PiSessionSnapshot } from "@/lib/api/pi-runtime";

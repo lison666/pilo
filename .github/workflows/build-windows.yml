@@ -62,10 +62,9 @@ jobs:
           # Diagnostic build: only the Windows server runtime is staged;
           # release bundles for all platforms remain the release workflow's job.
           PILO_ALLOW_INCOMPLETE_SERVER_BUNDLE: "1"
-          # createUpdaterArtifacts=false skips updater signing so no
-          # TAURI_SIGNING_PRIVATE_KEY is needed for this diagnostic artifact.
-          TAURI_CONFIG: '{"bundle":{"createUpdaterArtifacts":false}}'
-        run: pnpm tauri build
+        # tauri.ci.conf.json sets createUpdaterArtifacts=false, skipping updater
+        # signing — no TAURI_SIGNING_PRIVATE_KEY needed for this diagnostic artifact.
+        run: pnpm tauri build --config src-tauri/tauri.ci.conf.json
 
       - name: Upload installer bundle
         uses: actions/upload-artifact@v4

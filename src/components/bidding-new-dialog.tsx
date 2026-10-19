@@ -28,8 +28,22 @@ import {
 
 type Purpose = "job" | "troubleshoot" | "analysis" | "api-analysis";
 
+type FieldKey =
+	| "interface_name"
+	| "entry_url"
+	| "job_id"
+	| "task_name"
+	| "spider_name"
+	| "script_file"
+	| "objective"
+	| "slug"
+	| "question"
+	| "job_ref"
+	| "api_url"
+	| "evidence_goal";
+
 type FieldSpec = {
-	key: string;
+	key: FieldKey;
 	required?: boolean;
 	multiline?: boolean;
 };

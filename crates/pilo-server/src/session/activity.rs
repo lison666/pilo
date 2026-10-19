@@ -350,8 +350,9 @@ fn pid_alive_windows(pid: u32) -> bool {
     use windows_sys::Win32::Foundation::{CloseHandle, ERROR_ACCESS_DENIED, GetLastError};
     use windows_sys::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION};
     unsafe {
+        // HANDLE is an isize in windows-sys; OpenProcess returns 0 on failure.
         let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
-        if !handle.is_null() {
+        if handle != 0 {
             CloseHandle(handle);
             return true;
         }

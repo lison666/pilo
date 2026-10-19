@@ -75,8 +75,9 @@ fn pid_alive(pid: u32) -> bool {
     use windows_sys::Win32::Foundation::{CloseHandle, ERROR_ACCESS_DENIED, GetLastError};
     use windows_sys::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION};
     unsafe {
+        // HANDLE is an isize in windows-sys; OpenProcess returns 0 on failure.
         let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
-        if !handle.is_null() {
+        if handle != 0 {
             CloseHandle(handle);
             return true;
         }
@@ -105,7 +106,12 @@ mod tests {
     fn write_session(dir: &Path, cwd: &Path) -> PathBuf {
         let path = dir.join("session.jsonl");
         let mut file = std::fs::File::create(&path).unwrap();
-        writeln!(file, "{{\"type\":\"session\",\"cwd\":{}}}", serde_json::to_string(&cwd.to_string_lossy()).unwrap()).unwrap();
+        writeln!(
+            file,
+            "{{\"type\":\"session\",\"cwd\":{}}}",
+            serde_json::to_string(&cwd.to_string_lossy()).unwrap()
+        )
+        .unwrap();
         path
     }
 
@@ -116,7 +122,10 @@ mod tests {
         let session = write_session(&session_dir, &workspace);
         std::fs::write(
             workspace.join("state/workspace.lock"),
-            format!("{{\"schema_version\":\"1.0\",\"pid\":{},\"role\":\"run\",\"started_at\":\"2026-01-01T00:00:00Z\",\"host\":\"h\",\"workspace\":\"w\"}}", std::process::id()),
+            format!(
+                "{{\"schema_version\":\"1.0\",\"pid\":{},\"role\":\"run\",\"started_at\":\"2026-01-01T00:00:00Z\",\"host\":\"h\",\"workspace\":\"w\"}}",
+                std::process::id()
+            ),
         )
         .unwrap();
         let error = guard_workspace_lock(&session).unwrap_err();

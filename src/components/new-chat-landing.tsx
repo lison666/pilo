@@ -40,6 +40,8 @@ import { useKeyboardShortcut } from "@/lib/use-keyboard-shortcut";
 import { tauriPiloClient } from "@/lib/api/tauri-pilo-client";
 import { useProjectModelScope } from "@/lib/use-project-model-scope";
 import { DraftProjectPicker } from "@/components/chat/draft-project-picker";
+import { BiddingNewDialog } from "@/components/bidding-new-dialog";
+import { Button } from "@/ui";
 
 function modelKey(model: PiModel | null): string | null {
 	return model ? `${model.provider}\0${model.id}` : null;
@@ -129,6 +131,7 @@ export function NewChatLanding({
 		"idle" | "loading" | "ready" | "error"
 	>(cachedModels ? "ready" : "idle");
 	const [modelError, setModelError] = useState<string | null>(null);
+	const [biddingDialogOpen, setBiddingDialogOpen] = useState(false);
 	const commandSuggestions = useMemo(
 		() =>
 			createPiCommandSuggestions(
@@ -434,11 +437,22 @@ export function NewChatLanding({
 					</div>
 					<div className="relative -mt-4 w-full shrink-0 pb-4">
 						<ConversationColumn className="relative">
-							<DraftProjectPicker
-								projects={projects}
-								project={project}
-								onSwitchProject={onSwitchProject}
-							/>
+							<div className="mb-2 flex items-center gap-2">
+								<DraftProjectPicker
+									projects={projects}
+									project={project}
+									onSwitchProject={onSwitchProject}
+								/>
+								{project && (
+									<Button
+										variant="outline"
+										size="sm"
+										onClick={() => setBiddingDialogOpen(true)}
+									>
+										{t("bidding.newTask")}
+									</Button>
+								)}
+							</div>
 							<ChatComposer
 								value={draft}
 								historyKey={projectId}
@@ -484,6 +498,15 @@ export function NewChatLanding({
 						</ConversationColumn>
 					</div>
 				</div>
+				{project && (
+					<BiddingNewDialog
+						open={biddingDialogOpen}
+						onOpenChange={setBiddingDialogOpen}
+						project={project}
+						client={tauriPiloClient}
+						onCreated={(created) => onSwitchProject?.(created.id)}
+					/>
+				)}
 			</div>
 		</SessionMentionScope>
 	);

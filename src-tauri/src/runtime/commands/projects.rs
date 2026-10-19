@@ -74,6 +74,43 @@ pub fn project_model_cache_set(
     Ok(cache)
 }
 
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BiddingAgentNewResult {
+    pub code: Option<i32>,
+    pub stdout: String,
+    pub stderr: String,
+}
+
+/// Runs `bidding-agent new` inside the given (hub) project directory via the
+/// shared `command.run` path. The CLI remains the sole owner of task/brief
+/// schema; Pilo only forwards purpose + fields.
+#[tauri::command]
+pub async fn bidding_agent_new(
+    app: AppHandle,
+    runtime: State<'_, PiloRuntime>,
+    project_id: String,
+    purpose: String,
+    fields: std::collections::HashMap<String, String>,
+    from_registry: bool,
+) -> Result<BiddingAgentNewResult, String> {
+    let project = project::get(&app, &project_id)?;
+    let mut args = vec!["new".to_owned(), "--purpose".to_owned(), purpose];
+    if from_registry {
+        args.push("--from-registry".to_owned());
+    }
+    for (key, value) in fields {
+        args.push("--set".to_owned());
+        args.push(format!("{key}={value}"));
+    }
+    let output = git::run(&runtime.servers, &project, "bidding-agent", &args, &[]).await?;
+    Ok(BiddingAgentNewResult {
+        code: output.code,
+        stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
+        stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
+    })
+}
+
 #[tauri::command]
 pub async fn project_add(
     app: AppHandle,

@@ -21,6 +21,8 @@ import {
 	type PiloClientEventOptions,
 	type PiloClientHistoryOptions,
 	type PiloClientStartChatInput,
+	type BiddingAgentNewInput,
+	type BiddingAgentNewResult,
 } from "@/lib/api/pilo-client";
 import { listProjects } from "@/lib/api/projects";
 import type { SessionReadState } from "@/lib/session-read-state";
@@ -151,6 +153,17 @@ export class TauriPiloClient implements PiloClient {
 	async loadModels(projectId: string): Promise<ProjectPiModels | null> {
 		await hydrateProjectPiModels();
 		return getCachedProjectPiModels(projectId);
+	}
+
+	biddingAgentNew(
+		input: BiddingAgentNewInput,
+	): Promise<BiddingAgentNewResult> {
+		return invoke<BiddingAgentNewResult>("bidding_agent_new", {
+			projectId: input.projectId,
+			purpose: input.purpose,
+			fields: input.fields,
+			fromRegistry: input.fromRegistry ?? false,
+		});
 	}
 
 	loadModelScope(projectId: string): Promise<ProjectModelScope> {

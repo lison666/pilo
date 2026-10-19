@@ -158,6 +158,10 @@ pub(crate) fn router(
         )
         .route("/api/v1/chat/start", post(handlers::chat_start))
         .route("/api/v1/chat/stop", post(handlers::chat_stop))
+        .route(
+            "/api/v1/bidding-agent/new",
+            post(handlers::bidding_agent_new),
+        )
         .route("/api/v1/chat/state", get(handlers::chat_state))
         .route("/api/v1/chat/rpc", post(handlers::chat_rpc))
         .route("/api/v1/chat/mcp-approve", post(handlers::chat_mcp_approve))

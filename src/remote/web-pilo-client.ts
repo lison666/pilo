@@ -6,6 +6,8 @@ import type {
 	NextPromptRequest,
 } from "@/lib/next-prompt";
 import type {
+	BiddingAgentNewInput,
+	BiddingAgentNewResult,
 	PiloClient,
 	PiloClientBootstrap,
 	PiloClientEventOptions,
@@ -54,6 +56,7 @@ import {
 	loadRemoteNextPromptSettings,
 	saveRemoteNextPromptSettings,
 	requestRemoteNextPrompt,
+	newRemoteBiddingAgent,
 	loadRemoteModelScope,
 	saveRemoteModelScope,
 	loadRemoteSessions,
@@ -202,6 +205,12 @@ export class WebPiloClient implements PiloClient {
 
 	requestNextPrompt(request: NextPromptRequest): Promise<void> {
 		return requestRemoteNextPrompt(this.token, request);
+	}
+
+	biddingAgentNew(
+		input: BiddingAgentNewInput,
+	): Promise<BiddingAgentNewResult> {
+		return newRemoteBiddingAgent(this.token, input);
 	}
 
 	startChat(input: PiloClientStartChatInput): Promise<PiSessionSnapshot> {

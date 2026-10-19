@@ -16,6 +16,10 @@ import type {
 	PiloClientHistoryOptions,
 	PiloClientStartChatInput,
 } from "@/lib/api/pilo-client";
+import type {
+	BiddingAgentNewInput,
+	BiddingAgentNewResult,
+} from "@/lib/api/pilo-client";
 import type { ProjectPiModels } from "@/lib/api/pi-models";
 import type { PiSessionSnapshot } from "@/lib/api/pi-runtime";
 import type {
@@ -192,6 +196,18 @@ async function remoteFetchBytes(
 	}
 	if (!response.ok) throw new Error(await decodeError(response));
 	return new Uint8Array(await response.arrayBuffer());
+}
+
+export function newRemoteBiddingAgent(token: string, input: BiddingAgentNewInput) {
+	return remoteFetch<BiddingAgentNewResult>(token, "/api/v1/bidding-agent/new", {
+		method: "POST",
+		body: JSON.stringify({
+			projectId: input.projectId,
+			purpose: input.purpose,
+			fields: input.fields,
+			fromRegistry: input.fromRegistry ?? false,
+		}),
+	});
 }
 
 export function loadRemoteThemeSettings(token: string) {

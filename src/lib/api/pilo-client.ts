@@ -45,6 +45,19 @@ export type PiloClientHistoryOptions = {
 
 export type PiloClientEvent = PiloRuntimeEvent & { sequence: number };
 
+export type BiddingAgentNewInput = {
+	projectId: string;
+	purpose: string;
+	fields: Record<string, string>;
+	fromRegistry?: boolean;
+};
+
+export type BiddingAgentNewResult = {
+	code: number | null;
+	stdout: string;
+	stderr: string;
+};
+
 export type PiloClientEventMessage =
 	| { type: "hello"; latestSequence: number; deviceId?: string }
 	| { type: "events"; events: PiloClientEvent[] }
@@ -115,6 +128,7 @@ export interface PiloClient {
 		model: NextPromptModel | null,
 	): Promise<NextPromptSettings>;
 	requestNextPrompt(request: NextPromptRequest): Promise<void>;
+	biddingAgentNew(input: BiddingAgentNewInput): Promise<BiddingAgentNewResult>;
 	startChat(input: PiloClientStartChatInput): Promise<PiSessionSnapshot>;
 	stopChat(sessionKey: string, reason?: string): Promise<void>;
 	chatState(sessionKey: string): Promise<ChatSessionRuntimeState | null>;

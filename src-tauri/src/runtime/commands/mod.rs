@@ -23,7 +23,7 @@ pub use connections::{
     wsl_connection_test, wsl_list_distributions,
 };
 pub use projects::{
-    connection_fs_read_dir, local_pick_project_directory, parallel_agent_create,
+    bidding_agent_new, connection_fs_read_dir, local_pick_project_directory, parallel_agent_create,
     parallel_agent_list, parallel_agent_remove, parallel_agent_send, parallel_agent_stop,
     project_add, project_chat_file_remove, project_chat_file_upload, project_discover,
     project_fs_mkdir, project_fs_read_dir, project_fs_read_file, project_fs_read_image,

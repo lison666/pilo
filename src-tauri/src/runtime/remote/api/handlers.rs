@@ -441,6 +441,37 @@ pub(super) async fn session_delete(
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub(super) struct BiddingAgentNewRequest {
+    project_id: String,
+    purpose: String,
+    fields: std::collections::HashMap<String, String>,
+    #[serde(default)]
+    from_registry: bool,
+}
+
+/// WebUI counterpart of the `bidding_agent_new` Tauri command — same function,
+/// same `command.run` path, same validation in the CLI.
+pub(super) async fn bidding_agent_new(
+    State(state): State<RemoteHttpState>,
+    Json(request): Json<BiddingAgentNewRequest>,
+) -> Response {
+    match crate::runtime::commands::bidding_agent_new(
+        state.app.clone(),
+        state.app.state::<PiloRuntime>(),
+        request.project_id,
+        request.purpose,
+        request.fields,
+        request.from_registry,
+    )
+    .await
+    {
+        Ok(result) => Json(result).into_response(),
+        Err(error) => api_error(StatusCode::BAD_REQUEST, &error),
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub(super) struct ModelsQuery {
     project_id: String,
 }

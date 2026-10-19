@@ -133,3 +133,62 @@ pub(crate) fn session_discover() -> Result<Value, String> {
     }
     to_value(headers)
 }
+
+#[cfg(test)]
+mod tests {
+    use std::io::Write as _;
+    use std::path::PathBuf;
+
+    use super::{SessionDeleteParams, session_delete};
+    use crate::session::agent_dir;
+
+    /// Session file inside the real `<agent_dir>/sessions/` plus a workspace
+    /// carrying the lock, so `checked_session_file`'s containment rule and the
+    /// guard both see their true inputs.
+    fn locked_session_fixture() -> Option<(PathBuf, PathBuf, PathBuf)> {
+        let sessions = agent_dir()?.join("sessions");
+        std::fs::create_dir_all(&sessions).ok()?;
+        let tag = format!("pilo-guard-test-{}", std::process::id());
+        let workspace = std::env::temp_dir().join(&tag);
+        let project_dir = sessions.join(&tag);
+        std::fs::create_dir_all(workspace.join("state")).ok()?;
+        std::fs::create_dir_all(&project_dir).ok()?;
+        let session = project_dir.join("session.jsonl");
+        let mut file = std::fs::File::create(&session).ok()?;
+        writeln!(
+            file,
+            "{{\"type\":\"session\",\"cwd\":{}}}",
+            serde_json::to_string(&workspace.to_string_lossy()).unwrap()
+        )
+        .ok()?;
+        Some((workspace, project_dir, session))
+    }
+
+    #[test]
+    fn session_delete_refuses_a_live_lock_then_allows_once_released() {
+        let Some((workspace, project_dir, session)) = locked_session_fixture() else {
+            eprintln!("skipping: Pi agent directory unavailable");
+            return;
+        };
+        std::fs::write(
+            workspace.join("state/workspace.lock"),
+            format!(
+                "{{\"schema_version\":\"1.0\",\"pid\":{}}}",
+                std::process::id()
+            ),
+        )
+        .unwrap();
+
+        let path = session.to_string_lossy().into_owned();
+        let error = session_delete(SessionDeleteParams { path: path.clone() }).unwrap_err();
+        assert!(error.contains("locked workspace"), "{error}");
+        assert!(session.exists(), "locked transcript must survive delete");
+
+        std::fs::remove_file(workspace.join("state/workspace.lock")).unwrap();
+        session_delete(SessionDeleteParams { path }).unwrap();
+        assert!(!session.exists(), "released transcript must be deleted");
+
+        std::fs::remove_dir_all(&workspace).ok();
+        std::fs::remove_dir_all(&project_dir).ok();
+    }
+}

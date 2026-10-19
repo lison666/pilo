@@ -234,3 +234,48 @@ fn remote_fs_does_not_follow_symlinks_outside_project() {
 
     std::fs::remove_dir_all(base).unwrap();
 }
+
+fn call_test_state() -> ServerState {
+    let (tx, _rx) = mpsc::channel(1);
+    new_state(tx, PathBuf::from("."))
+}
+
+#[test]
+fn hex_codec_roundtrips_and_rejects_bad_input() {
+    assert_eq!(hex_encode(&[0x00, 0xab, 0xff]), "00abff");
+    assert_eq!(hex_decode("00abff").unwrap(), vec![0x00, 0xab, 0xff]);
+    assert_eq!(hex_decode("").unwrap(), Vec::<u8>::new());
+    assert!(hex_decode("abc").is_err());
+    assert!(hex_decode("0g").is_err());
+}
+
+#[tokio::test]
+async fn call_line_rejects_invalid_json() {
+    let state = call_test_state();
+    let response = handle_call_line(&state, "not json").await;
+    assert_eq!(response["ok"], false);
+    assert!(response["error"].as_str().unwrap().contains("invalid JSON"));
+}
+
+#[tokio::test]
+async fn call_line_rejects_missing_method() {
+    let state = call_test_state();
+    let response = handle_call_line(&state, "{}").await;
+    assert_eq!(response["ok"], false);
+    assert_eq!(response["error"], "missing 'method'");
+}
+
+#[tokio::test]
+async fn call_line_rejects_bad_binary_hex() {
+    let state = call_test_state();
+    let response = handle_call_line(&state, r#"{"method":"server.ping","binaryHex":"0g"}"#).await;
+    assert_eq!(response["ok"], false);
+}
+
+#[tokio::test]
+async fn call_line_dispatches_server_ping() {
+    let state = call_test_state();
+    let response = handle_call_line(&state, r#"{"method":"server.ping"}"#).await;
+    assert_eq!(response["ok"], true);
+    assert_eq!(response["result"]["protocolVersion"], 3);
+}

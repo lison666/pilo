@@ -472,6 +472,33 @@ pub(super) async fn bidding_agent_new(
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub(super) struct ProjectAddRequest {
+    connection_id: String,
+    path: String,
+}
+
+/// WebUI counterpart of the `project_add` Tauri command — needed so the
+/// shared BiddingNewDialog can register a freshly created workspace project
+/// on the remote server too.
+pub(super) async fn project_add(
+    State(state): State<RemoteHttpState>,
+    Json(request): Json<ProjectAddRequest>,
+) -> Response {
+    match crate::runtime::commands::project_add(
+        state.app.clone(),
+        state.app.state::<PiloRuntime>(),
+        request.connection_id,
+        request.path,
+    )
+    .await
+    {
+        Ok(project) => Json(project).into_response(),
+        Err(error) => api_error(StatusCode::BAD_REQUEST, &error),
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub(super) struct ModelsQuery {
     project_id: String,
 }

@@ -162,6 +162,7 @@ pub(crate) fn router(
             "/api/v1/bidding-agent/new",
             post(handlers::bidding_agent_new),
         )
+        .route("/api/v1/projects", post(handlers::project_add))
         .route("/api/v1/chat/state", get(handlers::chat_state))
         .route("/api/v1/chat/rpc", post(handlers::chat_rpc))
         .route("/api/v1/chat/mcp-approve", post(handlers::chat_mcp_approve))

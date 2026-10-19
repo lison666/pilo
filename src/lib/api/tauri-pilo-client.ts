@@ -24,7 +24,7 @@ import {
 	type BiddingAgentNewInput,
 	type BiddingAgentNewResult,
 } from "@/lib/api/pilo-client";
-import { listProjects } from "@/lib/api/projects";
+import { listProjects, type Project } from "@/lib/api/projects";
 import type { SessionReadState } from "@/lib/session-read-state";
 import { readProjectImage } from "@/lib/api/files";
 import type {
@@ -162,6 +162,10 @@ export class TauriPiloClient implements PiloClient {
 			fields: input.fields,
 			fromRegistry: input.fromRegistry ?? false,
 		});
+	}
+
+	projectAdd(connectionId: string, path: string): Promise<Project> {
+		return invoke<Project>("project_add", { connectionId, path });
 	}
 
 	loadModelScope(projectId: string): Promise<ProjectModelScope> {

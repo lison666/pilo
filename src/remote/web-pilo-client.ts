@@ -15,6 +15,7 @@ import type {
 	PiloClientStartChatInput,
 } from "@/lib/api/pilo-client";
 import type { PiSessionSnapshot, PiloRuntimeEvent } from "@/lib/api/pi-runtime";
+import type { Project } from "@/lib/api/projects";
 import type { SessionReadState } from "@/lib/session-read-state";
 import {
 	isProjectPiModelsIncomplete,
@@ -57,6 +58,7 @@ import {
 	saveRemoteNextPromptSettings,
 	requestRemoteNextPrompt,
 	newRemoteBiddingAgent,
+	addRemoteProject,
 	loadRemoteModelScope,
 	saveRemoteModelScope,
 	loadRemoteSessions,
@@ -209,6 +211,10 @@ export class WebPiloClient implements PiloClient {
 
 	biddingAgentNew(input: BiddingAgentNewInput): Promise<BiddingAgentNewResult> {
 		return newRemoteBiddingAgent(this.token, input);
+	}
+
+	projectAdd(connectionId: string, path: string): Promise<Project> {
+		return addRemoteProject(this.token, connectionId, path);
 	}
 
 	startChat(input: PiloClientStartChatInput): Promise<PiSessionSnapshot> {

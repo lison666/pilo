@@ -3,11 +3,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import type { PiloClient } from "@/lib/api/pilo-client";
-import {
-	addProject,
-	notifyProjectsChanged,
-	type Project,
-} from "@/lib/api/projects";
+import { notifyProjectsChanged, type Project } from "@/lib/api/projects";
 import { userErrorMessage } from "@/lib/app-error";
 import {
 	Button,
@@ -129,7 +125,7 @@ export function BiddingNewDialog({
 				return;
 			}
 			const path = result.stdout.trim().split(/\r?\n/).pop() ?? "";
-			const created = await addProject(project.connection.id, path);
+			const created = await client.projectAdd(project.connection.id, path);
 			notifyProjectsChanged();
 			toast.success(t("bidding.created", { path }));
 			onOpenChange(false);

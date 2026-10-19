@@ -19,6 +19,7 @@ import type {
 	PiloClientStartChatInput,
 } from "@/lib/api/pilo-client";
 import type { ProjectPiModels } from "@/lib/api/pi-models";
+import type { Project } from "@/lib/api/projects";
 import type { PiSessionSnapshot } from "@/lib/api/pi-runtime";
 import type {
 	ProjectModelScope,
@@ -213,6 +214,17 @@ export function newRemoteBiddingAgent(
 			}),
 		},
 	);
+}
+
+export function addRemoteProject(
+	token: string,
+	connectionId: string,
+	path: string,
+) {
+	return remoteFetch<Project>(token, "/api/v1/projects", {
+		method: "POST",
+		body: JSON.stringify({ connectionId, path }),
+	});
 }
 
 export function loadRemoteThemeSettings(token: string) {

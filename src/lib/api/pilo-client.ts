@@ -129,6 +129,7 @@ export interface PiloClient {
 	): Promise<NextPromptSettings>;
 	requestNextPrompt(request: NextPromptRequest): Promise<void>;
 	biddingAgentNew(input: BiddingAgentNewInput): Promise<BiddingAgentNewResult>;
+	projectAdd(connectionId: string, path: string): Promise<Project>;
 	startChat(input: PiloClientStartChatInput): Promise<PiSessionSnapshot>;
 	stopChat(sessionKey: string, reason?: string): Promise<void>;
 	chatState(sessionKey: string): Promise<ChatSessionRuntimeState | null>;

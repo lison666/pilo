@@ -25,6 +25,7 @@ import { PiExtensionUiDialog } from "@/components/chat/pi-extension-ui-dialog";
 import { ChatPendingQueue } from "@/components/chat/chat-pending-queue";
 import { useScrollbarGutterWidth } from "@/components/chat/use-scrollbar-gutter";
 import { DraftProjectPicker } from "@/components/chat/draft-project-picker";
+import { BiddingNewDialog } from "@/components/bidding-new-dialog";
 import { BootShellRemover } from "@/components/boot-shell-remover";
 import { SessionHeader } from "@/components/chat/chat-session-header";
 import {
@@ -35,7 +36,7 @@ import { AppSidebar } from "@/components/sidebar/app-sidebar";
 import { ChatMarkdownImageScopeProvider } from "@/components/chat/chat-markdown-image";
 import { connectionLabel } from "@/lib/api/projects";
 import type { PiloClientEventMessage } from "@/lib/api/pilo-client";
-import { TooltipProvider } from "@/ui";
+import { Button, TooltipProvider } from "@/ui";
 import { RemotePairingPage } from "./remote-pairing-page";
 import { isRemotePairingLocation } from "./remote-pairing-model";
 import { useMediaQuery } from "./remote-app-model";
@@ -98,6 +99,7 @@ function RemoteWorkspace() {
 	const isTouch = useMediaQuery("(hover: none) and (pointer: coarse)");
 	const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 	const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
+	const [biddingDialogOpen, setBiddingDialogOpen] = useState(false);
 	const scrollRef = useRef<HTMLDivElement>(null);
 	// "chat-scrollbar" 预留 stable gutter，输入框不在滚动容器内，需补等宽内边距
 	// 才能与消息列左右对齐（手机 overlay 滚动条为 0，仅在桌面浏览器可见）。
@@ -508,11 +510,22 @@ function RemoteWorkspace() {
 											onDismiss={chat.dismissExtensionNotification}
 										/>
 										{!chat.hasIdentifiedSession ? (
-											<DraftProjectPicker
-												projects={homeProjects}
-												project={chat.activeProject}
-												onSwitchProject={chat.switchDraftProject}
-											/>
+											<div className="mb-2 flex items-center gap-2">
+												<DraftProjectPicker
+													projects={homeProjects}
+													project={chat.activeProject}
+													onSwitchProject={chat.switchDraftProject}
+												/>
+												{chat.activeProject && client ? (
+													<Button
+														variant="outline"
+														size="sm"
+														onClick={() => setBiddingDialogOpen(true)}
+													>
+														{t("bidding.newTask")}
+													</Button>
+												) : null}
+											</div>
 										) : null}
 										{chat.extensionDialog ? (
 											<PiExtensionUiDialog
@@ -647,6 +660,19 @@ function RemoteWorkspace() {
 								</div>
 							</div>
 						</main>
+
+						{chat.activeProject && client ? (
+							<BiddingNewDialog
+								open={biddingDialogOpen}
+								onOpenChange={setBiddingDialogOpen}
+								project={chat.activeProject}
+								client={client}
+								onCreated={(created) => {
+									void sessions.reloadBootstrap();
+									chat.switchDraftProject(created.id);
+								}}
+							/>
+						) : null}
 
 						<ChatImageLightbox />
 
